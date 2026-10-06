@@ -1,0 +1,12 @@
+import { db } from '@/lib/db';
+import { PageHeading } from '@/components/page-heading';
+import { RecordManager } from '@/components/record-manager';
+import { saveGrade, deleteGrade } from '@/actions/records';
+import { requireUser } from '@/lib/auth';
+export const dynamic = 'force-dynamic';
+export default async function GradesPage() {
+  const user = await requireUser();
+  const [grades, students, classes] = await Promise.all([db.grade.findMany({ where: user.role === 'STUDENT' ? { studentId: user.studentId ?? '__none__' } : {}, include: { student: { include: { class: true } } }, orderBy: { createdAt: 'desc' } }), user.role === 'STUDENT' ? Promise.resolve([]) : db.student.findMany({ include: { class: true }, orderBy: { name: 'asc' } }), db.class.findMany({ orderBy: { name: 'asc' } })]);
+  const subjects = [...new Set(grades.map(g => g.subject))].sort();
+  return <><PageHeading title="Data Nilai" description="Catat dan pantau hasil belajar siswa."/><RecordManager kind="grade" readOnly={user.role === 'STUDENT'} importUrl={user.role === 'STUDENT' ? undefined : '/api/import/grades'} xlsxUrl={user.role === 'STUDENT' ? undefined : '/api/export/grades/xlsx'} records={grades.map(g => ({ id: g.id, studentId: g.studentId, name: g.student.name, nis: g.student.nis, classId: g.student.classId, className: g.student.class.name, subject: g.subject, semester: g.semester, score: g.score }))} columns={[{ key: 'name', label: 'Siswa' }, { key: 'className', label: 'Kelas' }, { key: 'subject', label: 'Mata Pelajaran' }, { key: 'semester', label: 'Semester' }, { key: 'score', label: 'Nilai' }]} fields={[{ key: 'studentId', label: 'Siswa', type: 'select', required: true, options: students.map(s => ({ value: s.id, label: `${s.name} · ${s.class.name}` })) }, { key: 'subject', label: 'Mata Pelajaran', required: true }, { key: 'semester', label: 'Semester', type: 'select', required: true, options: [{ value: 'Ganjil', label: 'Ganjil' }, { value: 'Genap', label: 'Genap' }] }, { key: 'score', label: 'Nilai', type: 'number', required: true }]} searchKeys={['name', 'nis']} filter={{ key: 'classId', label: 'Kelas', options: classes.map(c => ({ value: c.id, label: c.name })) }} secondFilter={{ key: 'subject', label: 'Mata Pelajaran', options: subjects.map(s => ({ value: s, label: s })) }} saveAction={saveGrade} deleteAction={deleteGrade} createLabel="Tambah Nilai" exportUrl={user.role === 'STUDENT' ? undefined : '/api/export/grades'} emptyText="Belum ada nilai. Tambahkan nilai pertama."/></>;
+}
