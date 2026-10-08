@@ -1,15 +1,57 @@
 import Link from 'next/link';
-import { Users, GraduationCap, School, Megaphone, ArrowRight, ClipboardCheck } from 'lucide-react';
 import { db } from '@/lib/db';
-import { PageHeading } from '@/components/page-heading';
-import { requireUser } from '@/lib/auth';
+import { currentUser } from '@/lib/auth';
+import { PublicHome } from '@/components/public-home';
+import { AdminDashboard } from '@/components/admin-dashboard';
+import './home-redesign.css';
+
 export const dynamic = 'force-dynamic';
-export default async function Dashboard() {
-  await requireUser();
-  const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const day = new Date(`${date}T00:00:00.000Z`);
-  const [students, teachers, classes, announcements, attendance, recent] = await Promise.all([db.student.count(), db.teacher.count(), db.class.count(), db.announcement.count(), db.attendance.groupBy({ by: ['status'], where: { date: day }, _count: true }), db.announcement.findMany({ take: 3, orderBy: { createdAt: 'desc' } })]);
-  const cards = [{ label: 'Total Siswa', count: students, icon: Users, href: '/students' }, { label: 'Total Guru', count: teachers, icon: GraduationCap, href: '/teachers' }, { label: 'Total Kelas', count: classes, icon: School, href: '/students' }, { label: 'Pengumuman', count: announcements, icon: Megaphone, href: '/announcements' }];
-  const status = [{ key: 'PRESENT', label: 'Hadir', color: 'text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950' }, { key: 'SICK', label: 'Sakit', color: 'text-amber-600 bg-amber-50 dark:text-amber-300 dark:bg-amber-950' }, { key: 'EXCUSED', label: 'Izin', color: 'text-sky-600 bg-sky-50 dark:text-sky-300 dark:bg-sky-950' }, { key: 'ABSENT', label: 'Alpha', color: 'text-rose-600 bg-rose-50 dark:text-rose-300 dark:bg-rose-950' }];
-  return <><PageHeading title="Dashboard" description="Ringkasan aktivitas dan data sekolah hari ini."/><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(c => <Link href={c.href} key={c.label} className="panel flex items-start justify-between p-5 transition hover:border-indigo-200"><div><p className="text-sm text-slate-500">{c.label}</p><p className="mt-3 text-3xl font-bold">{c.count}</p></div><span className="rounded-xl bg-indigo-50 p-3 text-indigo-600"><c.icon size={22}/></span></Link>)}</div><div className="mt-6 grid gap-6 lg:grid-cols-2"><section className="panel p-6"><div className="mb-5 flex items-center gap-2"><ClipboardCheck className="text-indigo-600" size={19}/><h2 className="font-bold">Absensi Hari Ini</h2></div><div className="grid grid-cols-2 gap-3">{status.map(s => <div key={s.key} className={`rounded-xl p-4 ${s.color}`}><p className="text-sm">{s.label}</p><p className="mt-2 text-2xl font-bold">{attendance.find(a => a.status === s.key)?._count ?? 0}</p></div>)}</div><Link href="/attendance" className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-indigo-600">Kelola absensi <ArrowRight size={15}/></Link></section><section className="panel p-6"><div className="mb-5 flex items-center justify-between"><h2 className="font-bold">Pengumuman Terbaru</h2><Link href="/announcements" className="text-sm font-semibold text-indigo-600">Lihat semua</Link></div>{recent.length ? <div className="space-y-4">{recent.map(a => <article key={a.id} className="border-b border-slate-100 pb-4 last:border-0"><p className="font-semibold">{a.title}</p><p className="mt-1 line-clamp-2 text-sm text-slate-500">{a.content}</p><p className="mt-2 text-xs text-slate-400">{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(a.createdAt)}</p></article>)}</div> : <p className="py-10 text-center text-sm text-slate-500">Belum ada pengumuman.</p>}</section></div></>;
+async function PortalHome({ name, role, studentId }: { name: string; role: 'ADMIN' | 'TEACHER' | 'STUDENT'; studentId: string | null }) {
+  const isStudent = role === 'STUDENT';
+  const recent = await db.announcement.findMany({ take: 3, orderBy: { createdAt: 'desc' } });
+  const [studentCount, teacherCount, classCount, gradeCount, attendanceCount, announcementCount] = await Promise.all([
+    isStudent ? Promise.resolve(0) : db.student.count(),
+    isStudent ? Promise.resolve(0) : db.teacher.count(),
+    isStudent ? Promise.resolve(0) : db.class.count(),
+    db.grade.count({ where: isStudent ? { studentId: studentId ?? '__none__' } : {} }),
+    db.attendance.count({ where: isStudent ? { studentId: studentId ?? '__none__', status: 'PRESENT' } : { status: 'PRESENT' } }),
+    db.announcement.count(),
+  ]);
+  const firstName = name.trim().split(' ')[0] || name;
+  const adminView = role === 'ADMIN' ? <AdminDashboard name={firstName} counts={{ students: studentCount, teachers: teacherCount, classes: classCount, grades: gradeCount, attendance: attendanceCount, announcements: announcementCount }} announcements={recent}/> : null;
+  if (adminView) return adminView;
+  const metrics = isStudent ? [
+    { label: 'Catatan nilai', value: gradeCount, href: '/grades' },
+    { label: 'Hari hadir', value: attendanceCount, href: '/attendance' },
+    { label: 'Pengumuman', value: announcementCount, href: '/announcements' },
+  ] : [
+    { label: 'Siswa', value: studentCount, href: '/students' },
+    { label: 'Guru', value: teacherCount, href: '/teachers' },
+    { label: 'Kelas', value: classCount, href: '/students' },
+  ];
+  const shortcuts = isStudent ? [
+    { label: 'Lihat nilai', href: '/grades', detail: 'Hasil belajar saya' },
+    { label: 'Lihat absensi', href: '/attendance', detail: 'Riwayat kehadiran' },
+    { label: 'Baca pengumuman', href: '/announcements', detail: 'Kabar sekolah' },
+  ] : role === 'TEACHER' ? [
+    { label: 'Catat absensi', href: '/attendance', detail: 'Kehadiran per kelas' },
+    { label: 'Kelola nilai', href: '/grades', detail: 'Hasil belajar siswa' },
+    { label: 'Edit data siswa', href: '/students/edit', detail: 'Identitas dan kelas' },
+  ] : [
+    { label: 'Kelola siswa', href: '/students', detail: 'Data dan kelas' },
+    { label: 'Catat absensi', href: '/attendance', detail: 'Kehadiran per kelas' },
+    { label: 'Kelola nilai', href: '/grades', detail: 'Hasil belajar siswa' },
+    { label: 'Kelola guru', href: '/teachers', detail: 'Data pengajar' },
+  ];
+  return <div className="dashboard">
+    <header className="dashboard-intro"><div><p className="dashboard-kicker">Beranda {role === 'ADMIN' ? 'admin' : role === 'TEACHER' ? 'guru' : 'siswa'}</p><h1>Selamat datang, {firstName}.</h1><p>{isStudent ? 'Pantau hasil belajar, kehadiran, dan kabar sekolah.' : 'Ringkasan sekolah dan pekerjaan yang sering Anda lakukan.'}</p></div><Link href={isStudent ? '/announcements' : '/attendance'} className="dashboard-primary-link">{isStudent ? 'Baca pengumuman' : 'Buka absensi'}</Link></header>
+    <section aria-labelledby="summary-title" className="dashboard-summary"><div className="dashboard-section-head"><h2 id="summary-title">Ringkasan</h2><span>Data sekolah terkini</span></div><div className="dashboard-metrics">{metrics.map(metric => <Link href={metric.href} className="dashboard-metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value.toLocaleString('id-ID')}</strong><span className="metric-open">Lihat data</span></Link>)}</div></section>
+    <div className="dashboard-columns"><section aria-labelledby="quick-title" className="dashboard-work"><div className="dashboard-section-head"><h2 id="quick-title">Akses cepat</h2><span>Pilih pekerjaan Anda</span></div><div className="dashboard-shortcuts">{shortcuts.map(shortcut => <Link href={shortcut.href} key={shortcut.href} className="dashboard-shortcut"><span><strong>{shortcut.label}</strong><small>{shortcut.detail}</small></span><span aria-hidden="true">↗</span></Link>)}</div></section><section aria-labelledby="news-title" className="dashboard-news"><div className="dashboard-section-head"><h2 id="news-title">Pengumuman terbaru</h2><Link href="/announcements">Lihat semua</Link></div>{recent.length ? <div>{recent.map(item => <Link href="/announcements" className="dashboard-news-row" key={item.id}><strong>{item.title}</strong><time dateTime={item.createdAt.toISOString()}>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(item.createdAt)}</time></Link>)}</div> : <p className="dashboard-empty">Belum ada pengumuman. Kabar sekolah akan tampil di sini.</p>}</section></div>
+  </div>;
+}
+
+export default async function HomePage() {
+  const user = await currentUser();
+  if (!user) return <PublicHome/>;
+  return <PortalHome name={user.name} role={user.role} studentId={user.studentId}/>;
 }

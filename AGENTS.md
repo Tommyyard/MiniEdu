@@ -38,8 +38,10 @@ Alur perubahan fitur: permintaan → audit → implementasi → lint/build → r
 `iron-session` menyimpan ID user dalam cookie terenkripsi; `lib/auth.ts` mengambil role dan relasi guru/siswa dari database. Login memakai `User.identifier` unik: username Admin, NIP Guru, atau NIS Siswa; email lama opsional dan bukan kredensial login. Password disimpan sebagai hash `bcryptjs`. Setiap halaman internal, Server Action, dan Route Handler sensitif harus memeriksa pengguna/role di server. Menyembunyikan tombol di frontend bukan pemeriksaan izin.
 
 - `ADMIN`: mengelola siswa, guru, absensi, nilai, dan pengumuman.
-- `TEACHER`: membaca data siswa/guru serta mengelola absensi dan nilai.
+- `TEACHER`: membaca data siswa/guru, memperbarui data siswa yang sudah ada melalui menu Edit Data Siswa, serta mengelola absensi dan nilai. Pembuatan dan penghapusan siswa tetap khusus Admin.
 - `STUDENT`: membaca pengumuman serta hanya nilai dan absensi miliknya sendiri.
+
+Halaman umum tersedia di `/` tanpa login. Setelah login, `/` menampilkan beranda sesuai peran. Menu Mode Developer di `/developer` khusus Admin dan menampilkan ikhtisar serta pintasan data sekolah.
 
 ## Database, environment, dan tindakan berisiko
 

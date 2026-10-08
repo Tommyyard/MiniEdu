@@ -9,7 +9,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   if (user.role === 'STUDENT') {
     const records = await db.attendance.findMany({ where: { studentId: user.studentId ?? '__none__' }, orderBy: { date: 'desc' }, take: 100 });
     const labels = { PRESENT: 'Hadir', SICK: 'Sakit', EXCUSED: 'Izin', ABSENT: 'Alpha' };
-    return <><PageHeading title="Absensi Saya" description="Riwayat kehadiran Anda."/><div className="panel table-wrap"><table><thead><tr><th>Tanggal</th><th>Status</th></tr></thead><tbody>{records.map(record => <tr key={record.id}><td>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'UTC' }).format(record.date)}</td><td>{labels[record.status]}</td></tr>)}</tbody></table>{!records.length && <p className="p-8 text-center text-sm text-slate-500">Belum ada absensi.</p>}</div></>;
+    return <><PageHeading title="Absensi Saya" description="Riwayat kehadiran Anda."/><div className="panel table-wrap"><table><thead><tr><th scope="col">Tanggal</th><th scope="col">Status</th></tr></thead><tbody>{records.map(record => <tr key={record.id}><td>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'UTC' }).format(record.date)}</td><td>{labels[record.status]}</td></tr>)}</tbody></table>{!records.length && <p className="record-empty">Belum ada absensi yang tercatat.</p>}</div></>;
   }
   const params = await searchParams;
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());

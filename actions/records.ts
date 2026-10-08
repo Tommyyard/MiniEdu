@@ -8,9 +8,10 @@ import { allowed } from '@/lib/auth';
 const forbidden = (): ActionResult => ({ ok: false, message: 'Anda tidak memiliki izin untuk tindakan ini.' });
 
 export async function saveStudent(form: FormData): Promise<ActionResult> {
-  if (!await allowed(['ADMIN'])) return forbidden();
+  if (!await allowed(['ADMIN', 'TEACHER'])) return forbidden();
   try {
     const id = value(form, 'id');
+    if (!id && !await allowed(['ADMIN'])) return forbidden();
     const data = studentSchema.parse({ nis: value(form, 'nis'), name: value(form, 'name'), gender: value(form, 'gender'), classId: value(form, 'classId') });
     if (!await db.class.findUnique({ where: { id: data.classId } })) return { ok: false, message: 'Kelas tidak ditemukan.' };
     if (id) await db.$transaction(async tx => {
